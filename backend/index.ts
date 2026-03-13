@@ -4,7 +4,7 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import axios from "axios";
 import mongoose from "mongoose";
-import Otp from "./models/Otp.js";
+import Otp from "./models/Otp";
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -16,37 +16,36 @@ mongoose.connect(process.env.MONGO_URI || "mongodb://localhost:27017/bulksms")
   .then(() => console.log("Connected to MongoDB"))
   .catch((err) => console.error("MongoDB connection error:", err));
 
-// 🔹 Helper: send SMS via AdvantaSMS
+// Helper: send SMS via AdvantaSMS
 interface SendSmsParams {
   mobilePhone: string;
   smsText: string;
 }
 
 async function sendSMS({ mobilePhone, smsText }: SendSmsParams) {
-  const ADVANTA_SMS_URL = process.env.ADVANTA_SMS_URL;
-  const ADVANTA_API_KEY = process.env.ADVANTA_API_KEY;
+  const SMS_URL = process.env.ADVANTA_SMS_URL;
+  const API_KEY = process.env.ADVANTA_API_KEY;
 
-  if (!ADVANTA_SMS_URL || !ADVANTA_API_KEY) {
+  if (!SMS_URL || !API_KEY) {
     throw new Error("Missing required SMS configuration (ADVANTA_SMS_URL or ADVANTA_API_KEY)");
   }
 
-  const body: any = {
-    apikey: ADVANTA_API_KEY,
+  // TiaraConnect Format: { from, to, message } with Authorization: Bearer <TOKEN>
+  const body = {
+    from: process.env.ADVANTA_SHORTCODE || "CONNECT",
+    to: mobilePhone,
     message: smsText,
-    shortcode: process.env.ADVANTA_SHORTCODE,
-    mobile: mobilePhone,
   };
 
-  if (process.env.ADVANTA_PARTNER_ID) {
-    body.partnerID = process.env.ADVANTA_PARTNER_ID;
-  }
-
-  return axios.post(ADVANTA_SMS_URL, body, {
-    headers: { "Content-Type": "application/json" },
+  return axios.post(SMS_URL, body, {
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${API_KEY}`
+    },
   });
 }
 
-// 🔹 Step 1: Generate OTP
+// Step 1: Generate OTP
 app.post("/request-otp", async (req: Request, res: Response) => {
   const { phone } = req.body;
   if (!phone) return res.status(400).json({ error: "Phone number required" });
@@ -68,7 +67,7 @@ app.post("/request-otp", async (req: Request, res: Response) => {
   }
 });
 
-// 🔹 Step 2: Verify OTP
+// Step 2: Verify OTP
 app.post("/verify-otp", async (req: Request, res: Response) => {
   const { phone, otp } = req.body;
   if (!phone || !otp) return res.status(400).json({ error: "Phone and OTP required" });
