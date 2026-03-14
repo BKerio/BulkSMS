@@ -25,24 +25,44 @@ interface SendSmsParams {
 async function sendSMS({ mobilePhone, smsText }: SendSmsParams) {
   const SMS_URL = process.env.ADVANTA_SMS_URL;
   const API_KEY = process.env.ADVANTA_API_KEY;
+  const PARTNER_ID = process.env.ADVANTA_PARTNER_ID;
+  const SHORTCODE = process.env.ADVANTA_SHORTCODE || "CONNECT";
 
   if (!SMS_URL || !API_KEY) {
     throw new Error("Missing required SMS configuration (ADVANTA_SMS_URL or ADVANTA_API_KEY)");
   }
 
-  // TiaraConnect Format: { from, to, message } with Authorization: Bearer <TOKEN>
-  const body = {
-    from: process.env.ADVANTA_SHORTCODE || "CONNECT",
-    to: mobilePhone,
-    message: smsText,
-  };
+  // Robust detection: Use Tiara format if URL contains "tiara" OR if no Partner ID is provided
+  const isTiara = SMS_URL.toLowerCase().includes("tiara") || !PARTNER_ID || PARTNER_ID.trim() === "";
 
-  return axios.post(SMS_URL, body, {
-    headers: { 
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${API_KEY}`
-    },
-  });
+  if (isTiara) {
+    // TiaraConnect Format
+    const body = {
+      from: SHORTCODE,
+      to: mobilePhone,
+      message: smsText,
+    };
+
+    return axios.post(SMS_URL, body, {
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${API_KEY}`
+      },
+    });
+  } else {
+    // AdvantaSMS / Legacy Format
+    const body = {
+      apikey: API_KEY,
+      partnerID: PARTNER_ID,
+      message: smsText,
+      shortcode: SHORTCODE,
+      mobile: mobilePhone,
+    };
+
+    return axios.post(SMS_URL, body, {
+      headers: { "Content-Type": "application/json" },
+    });
+  }
 }
 
 // Step 1: Generate OTP
